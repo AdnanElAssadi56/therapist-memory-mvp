@@ -27,10 +27,13 @@ class Therapist:
         self.client = openai_client
         self.model = model or os.getenv("THERAPIST_MODEL", "gpt-5")
         self.memory_manager = MemoryManager(client_id, openai_client, memory_model)
+        self.reasoning_effort = os.getenv("REASONING_EFFORT", "minimal")
+        self.verbosity = os.getenv("VERBOSITY", "medium")
         
         self.current_session = {
             "transcript": [],
-            "started_at": None
+            "started_at": None,
+            "previous_response_id": None
         }
     
     def start_session(self) -> str:
@@ -72,34 +75,43 @@ class Therapist:
         
         system_prompt = f"{prompts.THERAPIST_SYSTEM_PROMPT}\n\n{formatted_context}"
         
-        # Build messages with recent conversation history
+        # Build conversation text for Responses API
         recent_transcript = self.current_session["transcript"][-20:]
-        messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(recent_transcript)
+        conversation_text = self._format_messages(system_prompt, recent_transcript)
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_completion_tokens=1500 
-            )
+            # Build API call parameters
+            api_params = {
+                "model": self.model,
+                "input": conversation_text,
+                "max_output_tokens": 500
+            }
             
-            therapist_response = response.choices[0].message.content
+            # Only add reasoning/verbosity for gpt-5 models
+            if self.model.startswith("gpt-5"):
+                api_params["reasoning"] = {"effort": self.reasoning_effort}
+                api_params["text"] = {"verbosity": self.verbosity}
+            
+            response = self.client.responses.create(**api_params)
+            therapist_response = response.output_text
+            
             if not therapist_response:
                 therapist_response = "I'm listening. Please tell me more."
             
         except Exception as e:
             print(f"Error generating response: {e}")
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": prompts.THERAPIST_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_message}
-                    ],
-                    max_completion_tokens=1500
-                )
-                therapist_response = response.choices[0].message.content
+                api_params = {
+                    "model": self.model,
+                    "input": f"{prompts.THERAPIST_SYSTEM_PROMPT}\n\nUser: {user_message}"
+                }
+                
+                if self.model.startswith("gpt-5"):
+                    api_params["reasoning"] = {"effort": "minimal"}
+                    api_params["text"] = {"verbosity": "low"}
+                
+                response = self.client.responses.create(**api_params)
+                therapist_response = response.output_text
             except Exception as e2:
                 print(f"Retry failed: {e2}")
                 therapist_response = "I'm having trouble processing that right now. Could you tell me more?"
@@ -177,6 +189,21 @@ class Therapist:
             "started_at": self.current_session.get("started_at")
         }
     
+    def _format_messages(self, system_prompt: str, messages: list[dict]) -> str:
+        """Format messages for LLM input."""
+        formatted_parts = [f"System: {system_prompt}"]
+        
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            
+            if role == "user":
+                formatted_parts.append(f"User: {content}")
+            elif role == "assistant":
+                formatted_parts.append(f"Assistant: {content}")
+        
+        return "\n\n".join(formatted_parts)
+    
     def _generate_new_client_greeting(self) -> str:
         """Generate greeting for new client."""
         return ("Hello, I'm here to listen and support you. This is a safe space where you can "
@@ -211,16 +238,18 @@ Context:
 
 Keep it natural, empathetic, and brief (1-2 sentences). You can reference what we discussed last time if relevant, but keep it light. Don't ask multiple questions."""
             
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an empathetic therapist greeting a returning client."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_completion_tokens=200
-            )
+            api_params = {
+                "model": self.model,
+                "input": f"You are an empathetic therapist greeting a returning client.\n\n{prompt}",
+                "max_output_tokens": 100
+            }
             
-            return response.choices[0].message.content
+            if self.model.startswith("gpt-5"):
+                api_params["reasoning"] = {"effort": "minimal"}
+                api_params["text"] = {"verbosity": "low"}
+            
+            response = self.client.responses.create(**api_params)
+            return response.output_text
             
         except Exception as e:
             print(f"Error generating returning greeting: {e}")
