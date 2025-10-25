@@ -35,6 +35,10 @@ cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 ```
 
+**Optional: Adjust speed settings in .env**
+- `REASONING_EFFORT=minimal` (fastest, use minimal/low/medium/high)
+- `VERBOSITY=low` (more concise, use low/medium/high)
+
 ## Usage
 
 ### Start a therapy session
@@ -225,6 +229,18 @@ memory_manager.py (LLM Memory Operations)
 1. Update relevant module (therapist, memory_manager, etc.)
 2. Add tests to `test.py`
 3. Update README if user-facing
+
+## Performance
+
+The system is optimized for speed with:
+- `REASONING_EFFORT=minimal` - Fastest responses
+- `VERBOSITY=low` - Concise outputs
+- Efficient memory retrieval (only loads relevant context)
+
+Typical response times:
+- First message: 2-3 seconds
+- Follow-up messages: 1-2 seconds
+- Memory extraction: 2-3 seconds (happens after session ends)
 
 ## License
 
