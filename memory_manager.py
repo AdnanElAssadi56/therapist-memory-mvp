@@ -25,6 +25,8 @@ class MemoryManager:
         self.client_id = client_id
         self.client = openai_client
         self.model = model or os.getenv("MEMORY_MODEL", "gpt-5-mini")
+        self.reasoning_effort = os.getenv("REASONING_EFFORT", "low")
+        self.verbosity = os.getenv("VERBOSITY", "medium")
     
     def extract_memories(self, transcript: list[dict]) -> dict:
         """Extract memories from a session transcript."""
@@ -149,17 +151,21 @@ class MemoryManager:
         )
     
     def _call_llm_json(self, system_msg: str, user_msg: str) -> dict:
-        """Call LLM with JSON mode."""
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_msg}
-            ],
-            response_format={"type": "json_object"}
-        )
+        """Call LLM with JSON mode using Responses API."""
+        full_input = f"{system_msg}\n\n{user_msg}\n\nRespond with valid JSON only."
         
-        return json.loads(response.choices[0].message.content)
+        api_params = {
+            "model": self.model,
+            "input": full_input
+        }
+        
+        # Only add reasoning/verbosity for gpt-5 models
+        if self.model.startswith("gpt-5"):
+            api_params["reasoning"] = {"effort": self.reasoning_effort}
+            api_params["text"] = {"verbosity": self.verbosity}
+        
+        response = self.client.responses.create(**api_params)
+        return json.loads(response.output_text)
     
     def _merge_facts(self, existing_facts: list, new_facts: list) -> list:
         """Merge facts, avoiding duplicates."""
