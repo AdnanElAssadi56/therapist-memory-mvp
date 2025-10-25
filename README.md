@@ -137,8 +137,8 @@ python test.py
 This tests all components:
 - Storage (file I/O)
 - Prompts (formatting)
-- Memory Manager (GPT-4 and GPT-5)
-- Therapist (GPT-4 and GPT-5)
+- Memory Manager (Interaction with LLM)
+- Therapist (Interaction with LLM)
 - CLI
 
 ## Model Options
@@ -237,11 +237,4 @@ The system is optimized for speed with:
 - `VERBOSITY=low` - Concise outputs
 - Efficient memory retrieval (only loads relevant context)
 
-Typical response times:
-- First message: 2-3 seconds
-- Follow-up messages: 1-2 seconds
-- Memory extraction: 2-3 seconds (happens after session ends)
 
-## License
-
-MIT License - See TASK.md for project requirements.
